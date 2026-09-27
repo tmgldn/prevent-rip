@@ -1,0 +1,389 @@
+---
+import Layout from '../layouts/Layout.astro';
+import {
+	type Currency,
+	currentUsdNetPrice,
+	currentUsdPerLifeSaved,
+	donateLinks,
+	formatters,
+	format,
+	numberFromValue,
+	probabilityLifeSaved,
+	usdEquivalent,
+} from '../lib/donation';
+
+const currency: Currency = 'USD';
+const value = '';
+
+const number = numberFromValue(value);
+const formatted = formatters[currency].format(number);
+const usdEquiv = usdEquivalent(number, currency);
+const nets = format(usdEquiv / currentUsdNetPrice);
+const peopleProtected = Math.round((usdEquiv * 1.8) / currentUsdNetPrice);
+const lives = format(usdEquiv / currentUsdPerLifeSaved);
+const livesPhrase = lives === '1' ? "person's life" : "people's lives";
+const chance = format(probabilityLifeSaved(usdEquiv) * 100);
+---
+
+<Layout>
+	<main>
+		<div>
+			<h1>prevent<span class="rip">.rip</span></h1>
+			<p>For a single donation of</p>
+			<label>
+				<div class="currencies">
+					{
+						(['USD', 'EUR', 'GBP'] as const).map((curr) => (
+							<button class={`currency ${curr === currency ? 'active' : ''}`} data-currency={curr}>
+								{curr}
+							</button>
+						))
+					}
+				</div>
+				<input
+					id="amount"
+					placeholder="100"
+					type="tel"
+					style={`width: calc(${value.includes('.') ? 0.75 : 1.25}em + ${Math.max(3, value.length)}ch)`}
+				/>
+			</label>
+			<p><small id="formatted">{formatted}</small></p>
+			<p id="nets-line">
+				you'd pay for {nets} insecticide treated bed net{nets === '1' ? '' : 's'}, which would protect
+				approximately {peopleProtected} people from malaria for 3 to 5 years
+			</p>
+			{
+				usdEquiv >= currentUsdPerLifeSaved ? (
+					<p id="life-line">
+						you would save (on average) {lives} {livesPhrase}
+						<br />
+						<small>there'd be a {chance}% chance your donation would save a life</small>
+					</p>
+				) : (
+					<p id="life-line">
+						there'd be a {chance}% chance your donation would save a life
+						<br />
+						<small>
+							you would save (on average) {lives} {livesPhrase}
+						</small>
+					</p>
+				)
+			}
+			<a id="donate-link" href={donateLinks[currency]}>
+				<button class="donate">Donate and save lives</button>
+			</a>
+		</div>
+	</main>
+</Layout>
+
+<script>
+	import {
+		type Currency,
+		currentUsdNetPrice,
+		currentUsdPerLifeSaved,
+		donateLinks,
+		formatters,
+		format,
+		numberFromValue,
+		numberRegex,
+		probabilityLifeSaved,
+		usdEquivalent,
+	} from '../lib/donation';
+
+	const input = document.getElementById('amount') as HTMLInputElement;
+	const formattedEl = document.getElementById('formatted') as HTMLElement;
+	const netsLine = document.getElementById('nets-line') as HTMLElement;
+	const lifeLine = document.getElementById('life-line') as HTMLElement;
+	const donateLink = document.getElementById('donate-link') as HTMLAnchorElement;
+	const currencyButtons = Array.from(
+		document.querySelectorAll<HTMLButtonElement>('.currency')
+	);
+
+	let currency: Currency = 'USD';
+	let value = '';
+
+	function render(): void {
+		const number = numberFromValue(value);
+		const usdEquiv = usdEquivalent(number, currency);
+		const nets = format(usdEquiv / currentUsdNetPrice);
+		const lives = format(usdEquiv / currentUsdPerLifeSaved);
+		const livesPhrase = lives === '1' ? "person's life" : "people's lives";
+		const chance = format(probabilityLifeSaved(usdEquiv) * 100);
+
+		input.style.width = `calc(${value.includes('.') ? 0.75 : 1.25}em + ${Math.max(3, value.length)}ch)`;
+		formattedEl.textContent = formatters[currency].format(number);
+		netsLine.innerHTML = `you'd pay for ${nets} insecticide treated bed net${
+			nets === '1' ? '' : 's'
+		}, which would protect approximately ${Math.round((usdEquiv * 1.8) / currentUsdNetPrice)} people from malaria for 3 to 5 years`;
+		lifeLine.innerHTML =
+			usdEquiv >= currentUsdPerLifeSaved
+				? `you would save (on average) ${lives} ${livesPhrase}<br /><small>there'd be a ${chance}% chance your donation would save a life</small>`
+				: `there'd be a ${chance}% chance your donation would save a life<br /><small>you would save (on average) ${lives} ${livesPhrase}</small>`;
+		donateLink.href = donateLinks[currency];
+	}
+
+	input.addEventListener('input', () => {
+		const newValue = input.value;
+		if (numberRegex.test(newValue)) {
+			value = newValue;
+			render();
+		}
+	});
+
+	for (const button of currencyButtons) {
+		button.addEventListener('click', () => {
+			currency = button.dataset.currency as Currency;
+			for (const other of currencyButtons) {
+				other.classList.toggle('active', other === button);
+			}
+			render();
+		});
+	}
+
+	input.focus();
+</script>
+
+<style>
+	main {
+		max-width: 40ch;
+		padding: 32px;
+		margin: 0 auto;
+		text-align: center;
+	}
+
+	h1 {
+		font-size: 1.5em;
+	}
+
+	.rip {
+		color: #f00;
+	}
+
+	input {
+		padding: 0.25em 0.25em 0.25em 1em;
+		font-size: 4em;
+		max-width: 100%;
+		background: #111;
+    font-variant-numeric: tabular-nums;
+	}
+
+	label {
+		position: relative;
+		display: inline-block;
+	}
+
+	small {
+		font-size: 80%;
+		color: #999;
+	}
+
+	.currencies {
+		position: absolute;
+		top: 1.75em;
+		left: 1.5em;
+		z-index: 2;
+	}
+
+	.currency {
+		display: block;
+		width: 100%;
+		font-size: 1em;
+		text-align: center;
+		color: #888;
+	}
+
+	.currency.active {
+		color: #fff;
+	}
+
+	.currency:not(.active):hover {
+		color: #ccc;
+	}
+
+	p {
+		margin: 16px 0;
+	}
+
+	a {
+		display: inline-block;
+		outline: 2px solid #f00;
+	}
+
+	a:hover,
+	a:focus {
+		outline-color: #0f0;
+	}
+
+	button {
+		cursor: pointer;
+	}
+
+	.donate {
+		padding: 1em;
+	}
+
+	::-webkit-input-placeholder {
+		line-height: 5em;
+	}
+</style>
+
+<style is:global>
+	html,
+	body,
+	div,
+	span,
+	applet,
+	object,
+	iframe,
+	h1,
+	h2,
+	h3,
+	h4,
+	h5,
+	h6,
+	p,
+	blockquote,
+	pre,
+	a,
+	abbr,
+	acronym,
+	address,
+	big,
+	cite,
+	code,
+	del,
+	dfn,
+	em,
+	img,
+	ins,
+	kbd,
+	q,
+	s,
+	samp,
+	small,
+	strike,
+	strong,
+	sub,
+	sup,
+	tt,
+	var,
+	b,
+	u,
+	i,
+	center,
+	dl,
+	dt,
+	dd,
+	ol,
+	ul,
+	li,
+	fieldset,
+	form,
+	label,
+	legend,
+	table,
+	caption,
+	tbody,
+	tfoot,
+	thead,
+	tr,
+	th,
+	td,
+	article,
+	aside,
+	canvas,
+	details,
+	embed,
+	figure,
+	figcaption,
+	footer,
+	header,
+	hgroup,
+	menu,
+	nav,
+	output,
+	ruby,
+	section,
+	summary,
+	time,
+	mark,
+	audio,
+	video,
+	button,
+	input {
+		margin: 0;
+		padding: 0;
+		border: 0;
+		background: transparent;
+		font-size: 100%;
+		font: inherit;
+		color: inherit;
+		vertical-align: baseline;
+	}
+
+	article,
+	aside,
+	details,
+	figcaption,
+	figure,
+	footer,
+	header,
+	hgroup,
+	menu,
+	nav,
+	section {
+		display: block;
+	}
+
+	html {
+		font-size: 16px;
+		line-height: 1.35;
+		font-family: 'Inter', sans-serif;
+		background: #000;
+		color: #fff;
+	}
+
+	@media (min-width: 600px) {
+		html {
+			font-size: 18px;
+		}
+	}
+
+	@media (min-width: 800px) {
+		html {
+			font-size: 20px;
+		}
+	}
+
+	ol,
+	ul {
+		list-style: none;
+	}
+
+	blockquote,
+	q {
+		quotes: none;
+	}
+
+	blockquote:before,
+	blockquote:after,
+	q:before,
+	q:after {
+		content: '';
+		content: none;
+	}
+
+	table {
+		border-collapse: collapse;
+		border-spacing: 0;
+	}
+
+	* {
+		box-sizing: border-box;
+	}
+
+	@font-face {
+		font-family: Inter;
+		src: url('/Inter-Medium.woff2') format('woff2');
+	}
+</style>
